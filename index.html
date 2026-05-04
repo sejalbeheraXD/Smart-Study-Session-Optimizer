@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>StudyAI — Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════
+   DESIGN TOKENS — Sejal's palette
+═══════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:       #0f0f23;
+  --bg2:      #1a1a2e;
+  --bg3:      #16213e;
+  --bg4:      #1e2040;
+  --bg-card:  rgba(26,26,46,0.85);
+  --bg-hover: rgba(255,255,255,0.05);
+
+  --text:     #ffffff;
+  --muted:    #a1a1aa;
+  --dim:      #52525b;
+  --border:   rgba(255,255,255,0.08);
+  --border2:  rgba(255,255,255,0.14);
+
+  --indigo:   #6366f1;
+  --violet:   #8b5cf6;
+  --green:    #10b981;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --blue:     #3b82f6;
+
+  --indigo-d: rgba(99,102,241,0.15);
+  --green-d:  rgba(16,185,129,0.12);
+  --amber-d:  rgba(245,158,11,0.12);
+  --red-d:    rgba(239,68,68,0.12);
+
+  --font: 'Inter', -apple-system, sans-serif;
+  --mono: 'SF Mono', 'Fira Code', monospace;
+  --r:  8px;
+  --r2: 12px;
+  --r3: 16px;
+
+  --shadow: 0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -1px rgba(0,0,0,0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.4);
+}
+
+html { font-size:14px; background:var(--bg); color:var(--text); font-family:var(--font); }
+body { min-height:100vh; display:flex; background:linear-gradient(135deg,var(--bg) 0%,var(--bg2) 100%); }
+button { font-family:var(--font); cursor:pointer; }
+input,select { font-family:var(--mono); background:var(--bg3); border:1px solid var(--border2); color:var(--text); border-radius:var(--r); padding:6px 10px; font-size:12px; outline:none; }
+input:focus,select:focus { border-color:var(--indigo); }
+code { background:var(--bg4); padding:2px 6px; border-radius:4px; font-family:var(--mono); font-size:0.85em; color:var(--muted); }
+
+/* ═══════════════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════════════ */
+.shell { display:flex; min-height:100vh; width:100%; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width:220px; flex-shrink:0;
+  background:var(--bg-card);
+  border-right:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh;
+  z-index:100;
+}
+
+.sidebar-brand {
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border);
+}
+.brand-row { display:flex; align-items:center; gap:10px; }
+.brand-icon {
+  width:36px; height:36px; border-radius:var(--r);
+  background:linear-gradient(135deg,var(--indigo),var(--violet));
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:1rem;
+}
+.brand-name { font-size:1.1rem; font-weight:700; color:var(--text); }
+.brand-sub  { font-size:0.7rem; color:var(--muted); margin-top:1px; }
+
+.nav { flex:1; padding:12px 10px; overflow-y:auto; }
+.nav-section {
+  font-size:0.65rem; font-weight:600; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--dim);
+  padding:10px 8px 4px;
+}
+.nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 10px; border-radius:var(--r);
+  color:var(--muted); font-size:0.85rem; font-weight:500;
+  cursor:pointer; transition:all 0.15s;
+  margin-bottom:2px; border:none; background:transparent;
+  width:100%; text-align:left;
+}
+.nav-item:hover { background:var(--bg-hover); color:var(--text); }
+.nav-item.active { background:linear-gradient(135deg,var(--indigo),var(--violet)); color:#fff; }
+.nav-item i { width:16px; text-align:center; font-size:0.8rem; }
+
+.sidebar-footer {
+  padding:14px 16px;
+  border-top:1px solid var(--border);
+}
+.footer-clock {
+  font-size:0.8rem; color:var(--muted);
+  font-variant-numeric:tabular-nums; margin-bottom:8px;
+}
+.tracker-row {
+  display:flex; align-items:center; gap:6px;
+  font-size:0.7rem; color:var(--dim); margin-bottom:4px;
+}
+.tracker-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--red); flex-shrink:0; transition:background 0.3s;
+}
+.tracker-dot.online { background:var(--green); box-shadow:0 0 5px var(--green); }
+.version { font-size:0.65rem; color:var(--dim); }
+
+/* ── Main ── */
+.main { flex:1; overflow-y:auto; min-width:0; }
+.page { display:none; padding:28px 32px; min-height:100vh; }
+.page.active { display:block; }
+
+/* ── Page header ── */
+.page-hdr {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  margin-bottom:24px; padding-bottom:18px;
+  border-bottom:1px solid var(--border);
+}
+.page-title { font-size:1.4rem; font-weight:700; letter-spacing:-0.02em; }
+.page-sub   { font-size:0.8rem; color:var(--muted); margin-top:3px; }
+.hdr-actions { display:flex; gap:8px; align-items:center; }
+
+/* ── Cards ── */
+.card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--r2); padding:18px 20px;
+  backdrop-filter:blur(8px);
+  transition:border-color 0.2s;
+}
+.card:hover { border-color:var(--border2); }
+.card-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px;
+}
+.card-title {
+  display:flex; align-items:center; gap:8px;
+  font-size:0.85rem; font-weight:600; color:var(--text);
+}
+.card-title i { color:var(--indigo); }
+
+/* ── Buttons ── */
+.btn {
+  font-size:0.8rem; font-weight:500;
+  padding:7px 14px; border-radius:var(--r);
+  border:1px solid var(--border2); background:var(--bg3); color:var(--text);
+  display:inline-flex; align-items:center; gap:6px;
+  transition:all 0.14s; cursor:pointer; white-space:nowrap;
+}
+.btn:hover { background:var(--bg4); border-color:var(--border2); }
+.btn:active { transform:scale(0.97); }
+.btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+.btn-primary { background:linear-gradient(135deg,var(--indigo),var(--violet)); color:#fff; border-color:transparent; font-weight:600; }
+.btn-primary:hover { opacity:0.88; background:linear-gradient(135deg,var(--indigo),var(--violet)); }
+.btn-danger  { background:var(--red-d); color:var(--red); border-color:rgba(239,68,68,0.2); }
+.btn-danger:hover { background:rgba(239,68,68,0.2); }
+.btn-success { background:var(--green-d); color:var(--green); border-color:rgba(16,185,129,0.2); }
+.btn-sm { padding:5px 10px; font-size:0.75rem; }
+
+/* ── Tags ── */
+.tag {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:0.65rem; font-weight:600; letter-spacing:0.05em;
+  padding:2px 8px; border-radius:99px; border:1px solid;
+  text-transform:uppercase;
+}
+.tag-live    { background:var(--red-d);   color:var(--red);   border-color:rgba(239,68,68,0.25); }
+.tag-idle    { background:var(--bg3);     color:var(--muted); border-color:var(--border2); }
+.tag-paused  { background:var(--amber-d); color:var(--amber); border-color:rgba(245,158,11,0.25); }
+.tag-prod    { background:var(--green-d); color:var(--green); border-color:rgba(16,185,129,0.25); }
+.tag-unprod  { background:var(--red-d);   color:var(--red);   border-color:rgba(239,68,68,0.25); }
+.tag-neutral { background:var(--bg3);     color:var(--muted); border-color:var(--border2); }
+
+/* ── Progress bars ── */
+.prog { height:3px; background:var(--bg4); border-radius:99px; overflow:hidden; }
+.prog-fill { height:100%; border-radius:99px; transition:width 0.5s ease; }
+.prog-lg { height:6px; }
+
+/* ── Divider ── */
+.div { height:1px; background:var(--border); margin:14px 0; }
+
+/* ═══════════════════════════════════════════════════════
+   LIVE SESSION PAGE
+═══════════════════════════════════════════════════════ */
+.session-grid {
+  display:grid;
+  grid-template-columns:1fr 280px;
+  gap:16px; align-items:start;
+}
+
+/* Timer block */
+.timer-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--r2); padding:24px 20px; text-align:center;
+  margin-bottom:14px;
+}
+.timer-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; }
+.timer-num {
+  font-size:3.2rem; font-weight:700; letter-spacing:-0.04em;
+  line-height:1; margin-bottom:16px; color:var(--text);
+  font-variant-numeric:tabular-nums; transition:color 0.3s;
+}
+.timer-num.live { color:var(--indigo); }
+
+/* Phase indicators */
+.phase-row {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:6px; margin-bottom:16px;
+}
+.phase {
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:var(--r); padding:8px 6px; text-align:center;
+  transition:all 0.2s;
+}
+.phase.active {
+  background:var(--indigo-d);
+  border-color:rgba(99,102,241,0.35);
+}
+.phase-icon { font-size:1rem; margin-bottom:3px; }
+.phase-name { font-size:0.65rem; color:var(--muted); letter-spacing:0.05em; text-transform:uppercase; }
+.phase.active .phase-name { color:var(--indigo); }
+.phase-dur  { font-size:0.65rem; color:var(--dim); margin-top:1px; }
+
+.timer-btns { display:flex; gap:8px; justify-content:center; }
+
+/* Pomo strip */
+.pomo-row { display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.pomo-dots { display:flex; gap:5px; }
+.pomo-dot {
+  width:26px; height:5px; border-radius:3px;
+  background:var(--bg4); border:1px solid var(--border);
+  transition:all 0.3s;
+}
+.pomo-dot.done    { background:var(--indigo); border-color:var(--indigo); }
+.pomo-dot.current { background:var(--indigo-d); border-color:rgba(99,102,241,0.4); animation:pp 2s infinite; }
+@keyframes pp{0%,100%{opacity:1}50%{opacity:0.4}}
+.pomo-count { font-size:0.75rem; color:var(--muted); }
+
+/* Session goal */
+.goal-row {
+  display:flex; align-items:center; gap:10px;
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:var(--r); padding:10px 14px; margin-bottom:14px;
+}
+.goal-label { font-size:0.75rem; color:var(--muted); white-space:nowrap; }
+.goal-input { flex:1; background:transparent; border:none; color:var(--text); font-size:0.85rem; padding:0; min-width:0; }
+.goal-input:focus { outline:none; }
+
+/* System metrics */
+.sys-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.sys-metric { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r); padding:10px 12px; }
+.sm-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px; }
+.sm-val { font-size:1.1rem; font-weight:600; line-height:1; margin-bottom:4px; }
+.sm-bar { height:2px; background:var(--bg4); border-radius:99px; overflow:hidden; }
+.sm-fill { height:100%; border-radius:99px; transition:width 0.5s; }
+
+/* Live chart */
+.live-chart-wrap { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:14px 16px; margin-bottom:14px; }
+.lc-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.lc-title { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; }
+.lc-legend { display:flex; gap:12px; }
+.lc-leg-item { display:flex; align-items:center; gap:5px; font-size:0.65rem; color:var(--muted); }
+.lc-leg-line { width:14px; height:2px; border-radius:1px; }
+
+/* Active app */
+.active-app-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:12px 14px; margin-bottom:14px; }
+.aa-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px; }
+.aa-row { display:flex; align-items:center; gap:8px; }
+.aa-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--dim); transition:background 0.3s; }
+.aa-name { font-size:0.85rem; font-weight:500; flex:1; }
+.aa-since { font-size:0.7rem; color:var(--dim); }
+
+/* Activity feed */
+.feed-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:12px 14px; max-height:200px; overflow-y:auto; }
+.feed-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px; }
+.feed-item { display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); font-size:0.78rem; }
+.feed-item:last-child { border-bottom:none; }
+.feed-time { font-family:var(--mono); color:var(--dim); flex-shrink:0; font-size:0.7rem; padding-top:1px; }
+.feed-dot  { width:5px; height:5px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.feed-text { color:var(--muted); line-height:1.4; flex:1; }
+.feed-app  { font-weight:500; color:var(--text); }
+.feed-sub  { font-size:0.65rem; color:var(--dim); margin-top:1px; }
+
+/* Camera col */
+.cam-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); overflow:hidden; margin-bottom:12px; }
+.cam-wrap { position:relative; aspect-ratio:4/3; background:#000; }
+.cam-wrap video  { width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1); }
+.cam-wrap canvas { position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none; }
+.cam-badges { position:absolute; top:8px; left:8px; display:flex; flex-direction:column; gap:4px; pointer-events:none; }
+.cam-badge {
+  font-size:0.65rem; font-weight:700; letter-spacing:0.08em;
+  padding:2px 8px; border-radius:99px;
+  display:inline-flex; align-items:center; gap:4px;
+  backdrop-filter:blur(4px);
+}
+.badge-rec  { background:rgba(239,68,68,0.85); color:#fff; display:none; }
+.badge-rec.visible { display:inline-flex; }
+.badge-idle { background:rgba(26,26,46,0.85); color:var(--muted); }
+.badge-idle.hidden { display:none; }
+.rec-dot { width:5px;height:5px;border-radius:50%;background:#fff;animation:blink 1s infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.cam-score-chip {
+  display:none; position:absolute; bottom:8px; right:8px;
+  background:rgba(0,0,0,0.75); backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,0.1); border-radius:var(--r);
+  padding:6px 10px; text-align:center;
+}
+.cam-score-chip.visible { display:block; }
+.csc-score { font-size:1.1rem; font-weight:700; line-height:1; }
+.csc-label { font-size:0.55rem; color:rgba(255,255,255,0.45); letter-spacing:0.08em; margin-top:2px; }
+.cam-no-face { display:none; position:absolute; inset:0; align-items:center; justify-content:center; font-size:0.75rem; color:rgba(255,255,255,0.3); }
+.cam-no-face.visible { display:flex; }
+.cam-footer { display:flex; justify-content:space-between; padding:7px 12px; }
+.cam-footer-lbl { font-size:0.65rem; color:var(--dim); }
+
+/* ML model status bar */
+.ml-status {
+  display:flex; align-items:center; gap:7px;
+  font-size:0.72rem; color:var(--muted);
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:var(--r); padding:6px 10px; margin-bottom:12px;
+}
+.ml-dot { width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;transition:background 0.3s; }
+.ml-dot.ready { background:var(--green);box-shadow:0 0 5px var(--green); }
+.ml-dot.error { background:var(--red); }
+
+/* Attention gauges */
+.attn-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:12px 14px; margin-bottom:12px; }
+.attn-lbl  { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px; }
+.attn-gauges { display:flex; flex-direction:column; gap:8px; }
+.ag-row { display:flex; align-items:center; gap:10px; }
+.ag-name { font-size:0.72rem; color:var(--muted); min-width:80px; }
+.ag-bar  { flex:1; height:4px; background:var(--bg4); border-radius:99px; overflow:hidden; }
+.ag-fill { height:100%; border-radius:99px; transition:width 0.4s ease; }
+.ag-val  { font-size:0.72rem; color:var(--text); min-width:28px; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* Today quick stats */
+.today-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:12px 14px; }
+.today-rows { display:flex; flex-direction:column; gap:7px; }
+.today-row { display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; }
+.today-row-lbl { color:var(--muted); }
+.today-row-val { font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS PAGE
+═══════════════════════════════════════════════════════ */
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.kpi-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--r2); padding:14px 16px;
+  position:relative; overflow:hidden;
+}
+.kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--kpi-line,transparent); }
+.kpi-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:7px; }
+.kpi-val { font-size:1.6rem; font-weight:700; letter-spacing:-0.03em; line-height:1; }
+.kpi-sub { font-size:0.72rem; color:var(--muted); margin-top:5px; }
+
+.charts-grid { display:grid; grid-template-columns:3fr 2fr; gap:14px; margin-bottom:14px; }
+.charts-grid-3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:14px; margin-bottom:14px; }
+.chart-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:16px 18px; }
+.chart-lbl { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px; }
+.chart-area { position:relative; }
+
+/* Heatmap */
+.heatmap { display:grid; grid-template-columns:repeat(24,1fr); gap:3px; margin-top:8px; }
+.hm-cell { aspect-ratio:1; border-radius:2px; background:var(--bg4); cursor:default; transition:transform 0.1s; }
+.hm-cell:hover { transform:scale(1.4); z-index:1; }
+.hm-labels { display:grid; grid-template-columns:repeat(24,1fr); gap:3px; margin-top:3px; }
+.hm-label { font-size:7px; color:var(--dim); text-align:center; }
+
+/* Insight chips */
+.insights-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.insight-chip {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--r2); padding:12px 14px;
+  border-left:3px solid var(--indigo);
+}
+.insight-chip.good { border-left-color:var(--green); }
+.insight-chip.warn { border-left-color:var(--amber); }
+.ic-type { font-size:0.65rem; color:var(--muted); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:5px; }
+.ic-text { font-size:0.82rem; color:var(--text); line-height:1.55; }
+.ic-text strong { color:var(--indigo); }
+
+/* Comparison */
+.compare-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.cmp-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:16px; }
+.cmp-hdr  { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.cmp-title { font-size:0.72rem; color:var(--dim); letter-spacing:0.07em; text-transform:uppercase; }
+.cmp-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:0.82rem; }
+.cmp-row:last-child { border-bottom:none; padding-bottom:0; }
+.cmp-label { color:var(--muted); }
+.cmp-val   { font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════
+   HISTORY PAGE
+═══════════════════════════════════════════════════════ */
+.tbl { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.tbl th { font-size:0.65rem; color:var(--dim); letter-spacing:0.08em; text-transform:uppercase; padding:8px 12px; border-bottom:1px solid var(--border); text-align:left; font-weight:500; }
+.tbl td { padding:9px 12px; border-bottom:1px solid var(--border); }
+.tbl tr:last-child td { border-bottom:none; }
+.tbl tr:hover td { background:var(--bg-hover); }
+
+/* ═══════════════════════════════════════════════════════
+   SETTINGS PAGE
+═══════════════════════════════════════════════════════ */
+.ss { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r2); padding:18px 20px; margin-bottom:14px; }
+.ss-title { font-size:0.7rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); font-weight:500; }
+.sr { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border); gap:12px; }
+.sr:last-child { border-bottom:none; padding-bottom:0; }
+.sr-lbl  { font-size:0.85rem; color:var(--text); }
+.sr-desc { font-size:0.7rem; color:var(--dim); margin-top:2px; }
+.toggle  { position:relative; width:34px; height:18px; background:var(--bg4); border:1px solid var(--border2); border-radius:99px; cursor:pointer; flex-shrink:0; transition:all 0.2s; }
+.toggle.on { background:var(--indigo); border-color:var(--indigo); }
+.toggle::after { content:''; position:absolute; width:12px; height:12px; border-radius:50%; background:var(--muted); top:2px; left:2px; transition:transform 0.2s; }
+.toggle.on::after { transform:translateX(16px); background:#fff; }
+.rule-row { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); }
+.rule-row:last-child { border-bottom:none; }
+.rule-app { font-size:0.82rem; flex:1; color:var(--text); }
+
+/* ═══════════════════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:99px; }
+
+@media(max-width:900px) {
+  .session-grid,.kpi-grid { grid-template-columns:1fr; }
+  .charts-grid,.charts-grid-3,.compare-grid,.insights-row { grid-template-columns:1fr; }
+  .sys-grid { grid-template-columns:1fr 1fr; }
+  .page { padding:16px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-row">
+      <div class="brand-icon"><i class="fas fa-brain"></i></div>
+      <div>
+        <div class="brand-name">StudyAI</div>
+        <div class="brand-sub">Session Optimizer</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section">Session</div>
+    <button class="nav-item active" data-page="live">
+      <i class="fas fa-circle-dot"></i> Live Session
+    </button>
+
+    <div class="nav-section">Insights</div>
+    <button class="nav-item" data-page="analytics">
+      <i class="fas fa-chart-line"></i> Analytics
+    </button>
+    <button class="nav-item" data-page="history">
+      <i class="fas fa-calendar-days"></i> History
+    </button>
+
+    <div class="nav-section">Config</div>
+    <button class="nav-item" data-page="settings">
+      <i class="fas fa-gear"></i> Settings
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="footer-clock" id="clockDisplay"></div>
+    <div class="tracker-row">
+      <div class="tracker-dot" id="trackerDot"></div>
+      <span id="trackerLbl">tracker · offline</span>
+    </div>
+    <div class="version">v3.0.0 · local</div>
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="main">
+
+<!-- ══════════ PAGE: LIVE SESSION ══════════ -->
+<div class="page active" id="page-live">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">Live Session</div>
+      <div class="page-sub" id="liveDateStr"></div>
+    </div>
+    <div class="hdr-actions">
+      <span class="tag tag-idle" id="sessionTag">● IDLE</span>
+      <button class="btn btn-sm btn-danger" onclick="stopAndSave()" id="stopSaveBtn" disabled>
+        <i class="fas fa-stop"></i> Stop &amp; Save
+      </button>
+      <button class="btn btn-sm" onclick="resetSession()">
+        <i class="fas fa-rotate-left"></i> Reset
+      </button>
+    </div>
+  </div>
+
+  <!-- ML status -->
+  <div class="ml-status">
+    <div class="ml-dot" id="mlDot"></div>
+    <span id="mlStatusText">Loading face detection models… (first load ~10s)</span>
+  </div>
+
+  <!-- Pomodoro strip -->
+  <div class="pomo-row">
+    <div class="pomo-dots" id="pomoStrip"></div>
+    <span class="pomo-count" id="pomoLabel">0 / 4 pomodoros</span>
+  </div>
+
+  <div class="session-grid">
+
+    <!-- LEFT: timer + metrics + chart + feed -->
+    <div>
+      <!-- Session goal -->
+      <div class="goal-row">
+        <span class="goal-label"><i class="fas fa-bullseye"></i> Goal</span>
+        <input class="goal-input" id="sessionGoal" placeholder="What are you studying today?" autocomplete="off"/>
+      </div>
+
+      <!-- Timer -->
+      <div class="timer-card">
+        <div class="timer-lbl">Focus Timer</div>
+        <div class="timer-num" id="timerNum">00:00:00</div>
+        <div class="phase-row">
+          <div class="phase active" id="phase-focus">
+            <div class="phase-icon">🧠</div>
+            <div class="phase-name">Focus</div>
+            <div class="phase-dur" id="phase-focus-dur">25 min</div>
+          </div>
+          <div class="phase" id="phase-short">
+            <div class="phase-icon">☕</div>
+            <div class="phase-name">Short Break</div>
+            <div class="phase-dur" id="phase-short-dur">5 min</div>
+          </div>
+          <div class="phase" id="phase-long">
+            <div class="phase-icon">🌿</div>
+            <div class="phase-name">Long Break</div>
+            <div class="phase-dur" id="phase-long-dur">15 min</div>
+          </div>
+        </div>
+        <div class="timer-btns">
+          <button class="btn btn-primary" id="startBtn" onclick="toggleSession()" disabled>
+            <i class="fas fa-play"></i> Start Session
+          </button>
+        </div>
+      </div>
+
+      <!-- System metrics -->
+      <div class="sys-grid" id="sysMetrics">
+        <div class="sys-metric">
+          <div class="sm-lbl">Focus</div>
+          <div class="sm-val" id="smFocus" style="color:var(--indigo)">—</div>
+          <div class="sm-bar"><div class="sm-fill" id="smFocusBar" style="background:var(--indigo);width:0%"></div></div>
+        </div>
+        <div class="sys-metric">
+          <div class="sm-lbl">Productive</div>
+          <div class="sm-val" id="smProd" style="color:var(--green)">—</div>
+          <div class="sm-bar"><div class="sm-fill" id="smProdBar" style="background:var(--green);width:0%"></div></div>
+        </div>
+        <div class="sys-metric">
+          <div class="sm-lbl">WPM</div>
+          <div class="sm-val" id="smWpm" style="color:var(--blue)">—</div>
+          <div class="sm-bar"><div class="sm-fill" id="smWpmBar" style="background:var(--blue);width:0%"></div></div>
+        </div>
+        <div class="sys-metric">
+          <div class="sm-lbl">Attention</div>
+          <div class="sm-val" id="smAttn" style="color:var(--violet)">—</div>
+          <div class="sm-bar"><div class="sm-fill" id="smAttnBar" style="background:var(--violet);width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Live chart -->
+      <div class="live-chart-wrap">
+        <div class="lc-hdr">
+          <span class="lc-title">Real-time Focus + Attention</span>
+          <div class="lc-legend">
+            <span class="lc-leg-item"><div class="lc-leg-line" style="background:var(--indigo)"></div>Focus</span>
+            <span class="lc-leg-item"><div class="lc-leg-line" style="background:var(--green);opacity:0.7;border-top:1px dashed var(--green)"></div>Attention</span>
+          </div>
+        </div>
+        <div style="height:110px;position:relative"><canvas id="liveChart"></canvas></div>
+      </div>
+
+      <!-- Active window -->
+      <div class="active-app-card">
+        <div class="aa-lbl">Active Tab / Window</div>
+        <div class="aa-row">
+          <div class="aa-dot" id="aaDot"></div>
+          <div class="aa-name" id="aaName">—</div>
+        </div>
+        <div id="aaPageTitle" style="font-size:0.72rem;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div style="margin-top:7px" id="aaTag"></div>
+      </div>
+
+      <!-- Activity feed -->
+      <div class="feed-card">
+        <div class="feed-lbl">Activity Log</div>
+        <div id="activityFeed"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: camera + attention + today stats -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+
+      <!-- Camera -->
+      <div class="cam-card">
+        <div class="cam-wrap">
+          <video id="camVideo" autoplay muted playsinline></video>
+          <canvas id="camCanvas"></canvas>
+          <div class="cam-badges">
+            <div class="cam-badge badge-rec" id="camBadgeRec"><div class="rec-dot"></div> REC</div>
+            <div class="cam-badge badge-idle" id="camBadgeIdle">○ IDLE</div>
+          </div>
+          <div class="cam-score-chip" id="camScoreChip">
+            <div class="csc-score" id="camScoreVal">—</div>
+            <div class="csc-label">ATTENTION</div>
+          </div>
+          <div class="cam-no-face" id="camNoFace">No face detected</div>
+        </div>
+        <div class="cam-footer">
+          <span class="cam-footer-lbl">Face ML · local · private</span>
+          <span class="cam-footer-lbl" id="camFps">— fps</span>
+        </div>
+      </div>
+
+      <!-- Attention breakdown -->
+      <div class="attn-card">
+        <div class="attn-lbl">Attention Breakdown</div>
+        <div class="attn-gauges">
+          <div class="ag-row">
+            <span class="ag-name">Eye openness</span>
+            <div class="ag-bar"><div class="ag-fill" id="agEye" style="background:var(--blue);width:0%"></div></div>
+            <span class="ag-val" id="agEyeVal">—</span>
+          </div>
+          <div class="ag-row">
+            <span class="ag-name">Gaze</span>
+            <div class="ag-bar"><div class="ag-fill" id="agGaze" style="background:var(--indigo);width:0%"></div></div>
+            <span class="ag-val" id="agGazeVal">—</span>
+          </div>
+          <div class="ag-row">
+            <span class="ag-name">Head pose</span>
+            <div class="ag-bar"><div class="ag-fill" id="agPose" style="background:var(--green);width:0%"></div></div>
+            <span class="ag-val" id="agPoseVal">—</span>
+          </div>
+          <div class="ag-row">
+            <span class="ag-name">Expression</span>
+            <div class="ag-bar"><div class="ag-fill" id="agExpr" style="background:var(--violet);width:0%"></div></div>
+            <span class="ag-val" id="agExprVal">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Today stats -->
+      <div class="today-card">
+        <div class="attn-lbl">Today</div>
+        <div class="today-rows">
+          <div class="today-row">
+            <span class="today-row-lbl">Sessions</span>
+            <span class="today-row-val" id="todaySessions">0</span>
+          </div>
+          <div class="today-row">
+            <span class="today-row-lbl">Focus time</span>
+            <span class="today-row-val" id="todayTime">0m</span>
+          </div>
+          <div class="today-row">
+            <span class="today-row-lbl">Avg focus</span>
+            <span class="today-row-val" style="color:var(--indigo)" id="todayScore">—</span>
+          </div>
+          <div class="div" style="margin:6px 0"></div>
+          <div class="today-row">
+            <span class="today-row-lbl" style="font-size:0.7rem;color:var(--dim)">Daily goal</span>
+            <span class="today-row-val" style="color:var(--green);font-size:0.75rem" id="todayGoalPct">0%</span>
+          </div>
+          <div class="prog prog-lg">
+            <div class="prog-fill" id="todayGoalBar" style="background:linear-gradient(90deg,var(--indigo),var(--violet));width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: ANALYTICS ══════════ -->
+<div class="page" id="page-analytics">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">Analytics</div>
+      <div class="page-sub">Based on your saved sessions</div>
+    </div>
+    <button class="btn btn-sm" onclick="Store.exportCSV()">
+      <i class="fas fa-download"></i> Export CSV
+    </button>
+  </div>
+
+  <!-- KPI row -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kpi-line:var(--indigo)">
+      <div class="kpi-lbl">Avg Focus Score</div>
+      <div class="kpi-val" id="kpiFocus" style="color:var(--indigo)">—</div>
+      <div class="kpi-sub" id="kpiFocusSub">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-line:var(--green)">
+      <div class="kpi-lbl">Total Study Time</div>
+      <div class="kpi-val" id="kpiTime">—</div>
+      <div class="kpi-sub" id="kpiTimeSub">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-line:var(--violet)">
+      <div class="kpi-lbl">Sessions</div>
+      <div class="kpi-val" id="kpiSessions">—</div>
+      <div class="kpi-sub" id="kpiSessionsSub">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-line:var(--amber)">
+      <div class="kpi-lbl">Avg Attention</div>
+      <div class="kpi-val" id="kpiAttn" style="color:var(--amber)">—</div>
+      <div class="kpi-sub">face ML score</div>
+    </div>
+  </div>
+
+  <!-- Focus + Duration wide row -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-lbl">Focus Score · 14 days</div>
+      <div class="chart-area" style="height:200px"><canvas id="chartFocus"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-lbl">Study Duration · 14 days</div>
+      <div class="chart-area" style="height:200px"><canvas id="chartDuration"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Scatter + Donut + ML breakdown -->
+  <div class="charts-grid-3">
+    <div class="chart-card">
+      <div class="chart-lbl">Attention breakdown · Eye / Gaze / Pose</div>
+      <div class="chart-area" style="height:160px"><canvas id="chartML"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-lbl">Focus vs Duration</div>
+      <div class="chart-area" style="height:160px"><canvas id="chartScatter"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-lbl">Productive split</div>
+      <div style="height:160px;display:flex;align-items:center;justify-content:center;gap:16px">
+        <div style="width:120px;height:120px;flex-shrink:0;position:relative">
+          <canvas id="chartDonut"></canvas>
+          <div id="donutCenter" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-size:1.1rem;font-weight:700;color:var(--green)"></div>
+        </div>
+        <div id="donutLegend" style="font-size:0.72rem;display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap full width -->
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="chart-lbl">Peak Focus Hours · all sessions</div>
+    <div style="font-size:0.7rem;color:var(--dim);margin-bottom:4px">Brighter = higher average focus at that hour</div>
+    <div class="heatmap" id="heatmapGrid"></div>
+    <div class="hm-labels" id="heatmapLabels"></div>
+  </div>
+
+  <!-- Insights -->
+  <div class="insights-row" id="insightsRow"></div>
+
+  <!-- Adaptive Recommendation -->
+  <div class="chart-card" style="margin-bottom:14px">
+    <div class="card-hdr">
+      <div class="card-title"><i class="fas fa-brain"></i> Adaptive Study Recommendation</div>
+      <span style="font-size:0.7rem;color:var(--dim)">updates as you record more sessions</span>
+    </div>
+    <div id="adaptiveRecContainer" style="font-size:0.82rem;color:var(--dim);line-height:1.6">Loading…</div>
+  </div>
+
+  <!-- Comparison -->
+  <div style="font-size:0.65rem;color:var(--dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px">Last Session vs Previous</div>
+  <div class="compare-grid">
+    <div class="cmp-card">
+      <div class="cmp-hdr">
+        <div class="cmp-title">Last Session</div>
+        <span class="tag tag-idle" id="cmpLastTag">—</span>
+      </div>
+      <div id="cmpLast" style="font-size:0.78rem;color:var(--dim);padding:8px 0">No sessions yet</div>
+    </div>
+    <div class="cmp-card">
+      <div class="cmp-hdr">
+        <div class="cmp-title">Previous Session</div>
+        <span class="tag tag-neutral" id="cmpPrevTag">—</span>
+      </div>
+      <div id="cmpPrev" style="font-size:0.78rem;color:var(--dim);padding:8px 0">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: HISTORY ══════════ -->
+<div class="page" id="page-history">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">Session History</div>
+      <div class="page-sub">All recorded sessions</div>
+    </div>
+    <button class="btn btn-sm" onclick="Store.exportCSV()">
+      <i class="fas fa-download"></i> Export CSV
+    </button>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr>
+        <th>Date</th><th>Time</th><th>Goal</th><th>Duration</th>
+        <th>Focus</th><th>Attention</th><th>Gaze</th>
+        <th>Domain</th><th>Distractions</th><th>Pomos</th><th>Label</th>
+      </tr></thead>
+      <tbody id="historyBody">
+        <tr><td colspan="11" style="text-align:center;padding:32px;color:var(--dim)">No sessions yet — start your first session on the Live Session page.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: SETTINGS ══════════ -->
+<div class="page" id="page-settings">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Productivity rules · session config · tracking</div>
+    </div>
+    <button class="btn btn-sm btn-success" onclick="showToast('Settings auto-saved ✓')">Saved ✓</button>
+  </div>
+
+  <!-- App Rules -->
+  <div class="ss">
+    <div class="ss-title">App Productivity Rules</div>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      Tag each app as productive, unproductive, or neutral. Used to compute your productive ratio and classify distraction events.
+    </p>
+    <div id="appRulesContainer" style="margin-bottom:12px;max-height:260px;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="newAppName" placeholder="app name or domain…" style="flex:1;min-width:140px"/>
+      <select id="newAppCat">
+        <option value="prod">Productive</option>
+        <option value="unprod">Unproductive</option>
+        <option value="neutral">Neutral</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="addAppRule()"><i class="fas fa-plus"></i> Add</button>
+    </div>
+  </div>
+
+  <!-- Pomodoro config -->
+  <div class="ss">
+    <div class="ss-title">Pomodoro Configuration</div>
+    <div class="sr">
+      <div><div class="sr-lbl">Focus Duration</div><div class="sr-desc">Length of each focus block</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="cfgFocus" value="25" min="5" max="90" style="width:52px;text-align:center" onchange="Store.setSetting('focusDuration',+this.value);updatePhaseLabels()"/>
+        <span style="font-size:0.78rem;color:var(--muted)">min</span>
+      </div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Short Break</div><div class="sr-desc">Between each focus block</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="cfgShort" value="5" min="1" max="30" style="width:52px;text-align:center" onchange="Store.setSetting('shortBreak',+this.value);updatePhaseLabels()"/>
+        <span style="font-size:0.78rem;color:var(--muted)">min</span>
+      </div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Long Break</div><div class="sr-desc">After every N pomodoros</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="cfgLong" value="15" min="5" max="60" style="width:52px;text-align:center" onchange="Store.setSetting('longBreak',+this.value);updatePhaseLabels()"/>
+        <span style="font-size:0.78rem;color:var(--muted)">min</span>
+      </div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Pomos per Long Break</div><div class="sr-desc">How many focus blocks before a long break</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="cfgPomosPerLong" value="4" min="2" max="8" style="width:52px;text-align:center" onchange="Store.setSetting('pomosPerLong',+this.value);updatePomoStrip()"/>
+      </div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Daily Study Goal</div><div class="sr-desc">Target hours per day</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="cfgGoal" value="3" min="1" max="14" style="width:52px;text-align:center" onchange="Store.setSetting('dailyGoalHours',+this.value)"/>
+        <span style="font-size:0.78rem;color:var(--muted)">hrs</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tracking features -->
+  <div class="ss">
+    <div class="ss-title">Tracking Features</div>
+    <div class="sr">
+      <div><div class="sr-lbl">Camera attention tracking</div><div class="sr-desc">Face ML — eye EAR, gaze, head pose, expressions</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Keystroke rate logging</div><div class="sr-desc">WPM estimate only — never records what you type</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Active window tracking</div><div class="sr-desc">Requires Python system_tracker.py running</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Auto-pause on idle</div><div class="sr-desc">Pause timer after 2 min of no input</div></div>
+      <div class="toggle" onclick="this.classList.toggle('on')"></div>
+    </div>
+  </div>
+
+  <!-- System tracker -->
+  <div class="ss">
+    <div class="ss-title">Python System Tracker</div>
+    <p style="font-size:0.75rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      Run <code>python3 tracker/system_tracker.py</code> in a terminal to enable active window + keystroke tracking.
+      Without it, app tracking shows simulated data.
+    </p>
+    <div class="sr">
+      <div><div class="sr-lbl">Tracker port</div><div class="sr-desc">Default 7891</div></div>
+      <input value="7891" style="width:80px;text-align:center"/>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">CSV output path</div></div>
+      <input value="data/session_log.csv" style="width:200px"/>
+    </div>
+    <div class="sr" style="border:none;padding-bottom:0">
+      <div><div class="sr-lbl">Status</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tracker-dot" id="settingsDot"></div>
+        <span style="font-size:0.78rem;color:var(--muted)" id="settingsTrackerLbl">offline</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data management -->
+  <div class="ss">
+    <div class="ss-title">Data Management</div>
+    <div class="sr">
+      <div><div class="sr-lbl">Export sessions CSV</div><div class="sr-desc">Download all sessions as spreadsheet-ready CSV</div></div>
+      <button class="btn btn-sm" onclick="Store.exportCSV()"><i class="fas fa-download"></i> Export CSV</button>
+    </div>
+    <div class="sr">
+      <div><div class="sr-lbl">Load sample data</div><div class="sr-desc">Import the included data/sessions.csv to see analytics</div></div>
+      <button class="btn btn-sm" onclick="loadSampleCSV()"><i class="fas fa-file-import"></i> Load CSV</button>
+    </div>
+    <div class="sr" style="border:none;padding-bottom:0">
+      <div><div class="sr-lbl">Clear all data</div><div class="sr-desc">Permanently deletes all sessions from localStorage</div></div>
+      <button class="btn btn-sm btn-danger" onclick="if(confirm('Delete all sessions?')){Store.clearAll();location.reload()}">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="position:fixed;bottom:24px;right:24px;background:var(--indigo);color:#fff;padding:11px 20px;border-radius:var(--r2);z-index:9999;box-shadow:var(--shadow-lg);transform:translateY(60px);opacity:0;transition:all 0.3s ease;font-size:0.875rem;font-weight:500;pointer-events:none"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="/static/ml.js"></script>
+<script src="/static/store.js"></script>
+<script src="/static/tracker-bridge.js"></script>
+<script src="/static/activityTracker.js"></script>
+<script src="/static/classifier.js"></script>
+<script src="/static/sessionAnalyzer.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
